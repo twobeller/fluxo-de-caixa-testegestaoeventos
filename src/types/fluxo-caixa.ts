@@ -83,3 +83,72 @@ export interface NovaVendaIngressoPayload {
   forma_pagamento: FormaPagamentoVenda | string
   comprovante_url?: string | null
 }
+
+export type CategoriaPlanejamento =
+  | 'Artistas'
+  | 'Foto/Vídeo'
+  | 'Intervenções'
+  | 'Estrutura'
+  | 'Local/Alvará'
+  | 'Marketing'
+  | 'Loja'
+  | 'Serviços Admin'
+  | 'Funcionários'
+  | 'Alimentação'
+  | 'Bar'
+
+export const CATEGORIAS_PLANEJAMENTO: CategoriaPlanejamento[] = [
+  'Artistas',
+  'Foto/Vídeo',
+  'Intervenções',
+  'Estrutura',
+  'Local/Alvará',
+  'Marketing',
+  'Loja',
+  'Serviços Admin',
+  'Funcionários',
+  'Alimentação',
+  'Bar',
+]
+
+export type StatusPlanejamento = 'Pendente' | 'Pago Parcial' | 'Pago Total'
+
+export const STATUS_PLANEJAMENTO: StatusPlanejamento[] = ['Pendente', 'Pago Parcial', 'Pago Total']
+
+export interface ItemPlanejamento {
+  id: string
+  categoria: CategoriaPlanejamento | string
+  item: string
+  responsavel: string
+  quantidade: number
+  valor_unitario: number
+  valor_final: number
+  gutto: number
+  ruan: number
+  pc: number
+  junior: number
+  evento: number
+  total_pago: number
+  falta_pagar: number
+  status: StatusPlanejamento | string
+  criado_por?: string | null
+  criado_em: string
+  atualizado_em: string
+}
+
+export interface NovoItemPlanejamentoPayload {
+  categoria: CategoriaPlanejamento | string
+  item: string
+  responsavel: string
+  quantidade: number
+  valor_unitario: number
+  valor_final: number
+  gutto: number
+  ruan: number
+  pc: number
+  junior: number
+  evento: number
+  total_pago: number
+  falta_pagar: number
+  status: StatusPlanejamento | string
+}

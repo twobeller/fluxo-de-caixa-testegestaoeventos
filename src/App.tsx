@@ -25,6 +25,7 @@ import Layout from '@/components/Layout'
 import Index from '@/pages/Index'
 import Transactions from '@/pages/Transactions'
 import TransactionDetail from '@/pages/TransactionDetail'
+import Planejamento from '@/pages/Planejamento'
 import Login from '@/pages/Login'
 import NotFound from '@/pages/NotFound'
 
@@ -49,6 +50,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/transactions" element={<Transactions />} />
             <Route path="/transactions/:id" element={<TransactionDetail />} />
+            <Route path="/planejamento" element={<Planejamento />} />
           </Route>
 
           {/* Fallback & Not Found */}

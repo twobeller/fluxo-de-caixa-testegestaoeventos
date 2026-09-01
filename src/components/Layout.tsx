@@ -11,6 +11,7 @@ import {
   Wallet,
   Coins,
   Ticket,
+  CalendarCheck2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -67,6 +68,11 @@ export default function Layout({ children }: AppLayoutProps) {
       to: '/transactions',
       label: 'Transações',
       icon: Receipt,
+    },
+    {
+      to: '/planejamento',
+      label: 'Planejamento',
+      icon: CalendarCheck2,
     },
   ]
 
@@ -285,7 +291,7 @@ export default function Layout({ children }: AppLayoutProps) {
         <NavLink
           to="/"
           className={({ isActive }) =>
-            `flex flex-col items-center justify-center gap-1 py-1 px-3 rounded-lg text-[11px] font-semibold transition-colors ${
+            `flex flex-col items-center justify-center gap-1 py-1 px-2 rounded-lg text-[10px] font-semibold transition-colors ${
               isActive ? 'text-[#10B981]' : 'text-[#9FB5B0]'
             }`
           }
@@ -294,18 +300,31 @@ export default function Layout({ children }: AppLayoutProps) {
           <span>Visão Geral</span>
         </NavLink>
 
+        <NavLink
+          to="/planejamento"
+          className={({ isActive }) =>
+            `flex flex-col items-center justify-center gap-1 py-1 px-2 rounded-lg text-[10px] font-semibold transition-colors ${
+              isActive ? 'text-[#10B981]' : 'text-[#9FB5B0]'
+            }`
+          }
+        >
+          <CalendarCheck2 className="h-4 w-4" />
+          <span>Planejamento</span>
+        </NavLink>
+
         {/* Center elevated circular plus button */}
         <button
           onClick={() => setModalNovaTransacaoOpen(true)}
-          className="-mt-5 h-12 w-12 rounded-full bg-[#0E7C6B] text-white flex items-center justify-center shadow-lg border-2 border-[#10201E] hover:scale-105 active:scale-95 transition-transform"
+          title="Nova Transação"
+          className="-mt-5 h-11 w-11 rounded-full bg-[#0E7C6B] text-white flex items-center justify-center shadow-lg border-2 border-[#10201E] hover:scale-105 active:scale-95 transition-transform shrink-0"
         >
-          <Plus className="h-6 w-6" />
+          <Plus className="h-5 w-5" />
         </button>
 
         <NavLink
           to="/transactions"
           className={({ isActive }) =>
-            `flex flex-col items-center justify-center gap-1 py-1 px-3 rounded-lg text-[11px] font-semibold transition-colors ${
+            `flex flex-col items-center justify-center gap-1 py-1 px-2 rounded-lg text-[10px] font-semibold transition-colors ${
               isActive ? 'text-[#10B981]' : 'text-[#9FB5B0]'
             }`
           }
