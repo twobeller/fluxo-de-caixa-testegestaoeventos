@@ -3,6 +3,7 @@ import { NavLink, useNavigate, useLocation, Outlet } from 'react-router-dom'
 import { useAuth } from '@/hooks/use-mobile'
 import {
   LayoutDashboard,
+  BarChart3,
   Receipt,
   LogOut,
   Plus,
@@ -65,14 +66,19 @@ export default function Layout({ children }: AppLayoutProps) {
       icon: LayoutDashboard,
     },
     {
-      to: '/transactions',
-      label: 'Transações',
-      icon: Receipt,
+      to: '/dashboard',
+      label: 'Dashboard',
+      icon: BarChart3,
     },
     {
       to: '/planejamento',
       label: 'Planejamento',
       icon: CalendarCheck2,
+    },
+    {
+      to: '/transactions',
+      label: 'Transações',
+      icon: Receipt,
     },
   ]
 
@@ -287,29 +293,29 @@ export default function Layout({ children }: AppLayoutProps) {
       </main>
 
       {/* MOBILE BOTTOM NAVIGATION (≤640px) */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-[#10201E] border-t border-[#1D3431] z-40 flex items-center justify-around px-2">
+      <div className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-[#10201E] border-t border-[#1D3431] z-40 flex items-center justify-around px-1">
         <NavLink
           to="/"
           className={({ isActive }) =>
-            `flex flex-col items-center justify-center gap-1 py-1 px-2 rounded-lg text-[10px] font-semibold transition-colors ${
+            `flex flex-col items-center justify-center gap-0.5 py-1 px-1.5 rounded-lg text-[10px] font-semibold transition-colors ${
               isActive ? 'text-[#10B981]' : 'text-[#9FB5B0]'
             }`
           }
         >
           <LayoutDashboard className="h-4 w-4" />
-          <span>Visão Geral</span>
+          <span>Início</span>
         </NavLink>
 
         <NavLink
-          to="/planejamento"
+          to="/dashboard"
           className={({ isActive }) =>
-            `flex flex-col items-center justify-center gap-1 py-1 px-2 rounded-lg text-[10px] font-semibold transition-colors ${
+            `flex flex-col items-center justify-center gap-0.5 py-1 px-1.5 rounded-lg text-[10px] font-semibold transition-colors ${
               isActive ? 'text-[#10B981]' : 'text-[#9FB5B0]'
             }`
           }
         >
-          <CalendarCheck2 className="h-4 w-4" />
-          <span>Planejamento</span>
+          <BarChart3 className="h-4 w-4" />
+          <span>Dashboard</span>
         </NavLink>
 
         {/* Center elevated circular plus button */}
@@ -322,9 +328,21 @@ export default function Layout({ children }: AppLayoutProps) {
         </button>
 
         <NavLink
+          to="/planejamento"
+          className={({ isActive }) =>
+            `flex flex-col items-center justify-center gap-0.5 py-1 px-1.5 rounded-lg text-[10px] font-semibold transition-colors ${
+              isActive ? 'text-[#10B981]' : 'text-[#9FB5B0]'
+            }`
+          }
+        >
+          <CalendarCheck2 className="h-4 w-4" />
+          <span>Planejamento</span>
+        </NavLink>
+
+        <NavLink
           to="/transactions"
           className={({ isActive }) =>
-            `flex flex-col items-center justify-center gap-1 py-1 px-2 rounded-lg text-[10px] font-semibold transition-colors ${
+            `flex flex-col items-center justify-center gap-0.5 py-1 px-1.5 rounded-lg text-[10px] font-semibold transition-colors ${
               isActive ? 'text-[#10B981]' : 'text-[#9FB5B0]'
             }`
           }

@@ -26,6 +26,7 @@ import Index from '@/pages/Index'
 import Transactions from '@/pages/Transactions'
 import TransactionDetail from '@/pages/TransactionDetail'
 import Planejamento from '@/pages/Planejamento'
+import Dashboard from '@/pages/Dashboard'
 import Login from '@/pages/Login'
 import NotFound from '@/pages/NotFound'
 
@@ -48,6 +49,7 @@ const App = () => (
             }
           >
             <Route path="/" element={<Index />} />
+            <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/transactions" element={<Transactions />} />
             <Route path="/transactions/:id" element={<TransactionDetail />} />
             <Route path="/planejamento" element={<Planejamento />} />
