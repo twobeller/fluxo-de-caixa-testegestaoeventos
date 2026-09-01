@@ -1,7 +1,8 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { listarItensPlanejamento } from '@/services/planejamento'
-import { ItemPlanejamento, CATEGORIAS_PLANEJAMENTO } from '@/types/fluxo-caixa'
-import { formatarMoeda } from '@/lib/formatters'
+import { listarTransacoes } from '@/services/transacoes'
+import { ItemPlanejamento, Transacao, CATEGORIAS_PLANEJAMENTO } from '@/types/fluxo-caixa'
+import { formatarMoeda, formatarData } from '@/lib/formatters'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
@@ -11,16 +12,24 @@ import {
   Loader2,
   BarChart3,
   RefreshCw,
-  PieChart,
+  PieChart as PieChartIcon,
   ArrowUpRight,
+  TrendingUp,
   TrendingDown,
   Layers,
+  ArrowDownLeft,
+  CircleDollarSign,
+  Activity,
 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import {
   ResponsiveContainer,
   BarChart,
   Bar,
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
   XAxis,
   YAxis,
   Tooltip,
@@ -57,23 +66,31 @@ const CATEGORY_COLORS = [
 
 export default function Dashboard() {
   const [itens, setItens] = useState<ItemPlanejamento[]>([])
+  const [transacoes, setTransacoes] = useState<Transacao[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingTransacoes, setLoadingTransacoes] = useState(true)
 
-  // Carregar dados reais do Supabase
+  // Carregar dados reais do Supabase (planejamento e transações)
   const carregarDados = useCallback(async () => {
     setLoading(true)
+    setLoadingTransacoes(true)
     try {
-      const lista = await listarItensPlanejamento()
-      setItens(lista)
+      const [listaPlanejamento, listaTransacoes] = await Promise.all([
+        listarItensPlanejamento(),
+        listarTransacoes(),
+      ])
+      setItens(listaPlanejamento)
+      setTransacoes(listaTransacoes)
     } catch (err) {
-      console.error('Erro ao carregar itens no dashboard:', err)
+      console.error('Erro ao carregar dados no dashboard:', err)
       toast({
         title: 'Erro ao carregar dados',
-        description: 'Não foi possível buscar os dados do planejamento no Supabase.',
+        description: 'Não foi possível buscar as informações no Supabase.',
         variant: 'destructive',
       })
     } finally {
       setLoading(false)
+      setLoadingTransacoes(false)
     }
   }, [])
 
@@ -177,6 +194,132 @@ export default function Dashboard() {
       }))
   }, [categoriasConsolidadas])
 
+  // ==========================================
+  // CONSOLIDAÇÃO DO FLUXO DE CAIXA (Transações Reais)
+  // ==========================================
+
+  // 1. Totais do Fluxo de Caixa: Total Entradas, Total Saídas e Saldo Atual
+  const totaisFluxoCaixa = useMemo(() => {
+    const totalEntradas = transacoes.reduce((acc, t) => acc + (Number(t.entrada) || 0), 0)
+    const totalSaidas = transacoes.reduce((acc, t) => acc + (Number(t.saida) || 0), 0)
+    const saldoAtual = totalEntradas - totalSaidas
+
+    return {
+      totalEntradas,
+      totalSaidas,
+      saldoAtual,
+      totalTransacoes: transacoes.length,
+    }
+  }, [transacoes])
+
+  // 2. Gráfico de Linha: Evolução do Saldo Acumulado ao longo do tempo (ordem cronológica)
+  const lineChartData = useMemo(() => {
+    if (transacoes.length === 0) return []
+
+    // Ordenar em ordem cronológica estrita (data ASC, criado_em ASC)
+    const cronologicas = [...transacoes].sort((a, b) => {
+      const dataDiff = a.data.localeCompare(b.data)
+      if (dataDiff !== 0) return dataDiff
+      return (a.criado_em || '').localeCompare(b.criado_em || '')
+    })
+
+    // Calcular saldo acumulado por transação e agregar por ponto temporal
+    let acumulado = 0
+    const pontos: {
+      id: string
+      data: string
+      dataFormatada: string
+      descricao: string
+      entrada: number
+      saida: number
+      saldoAcumulado: number
+    }[] = []
+
+    cronologicas.forEach((t) => {
+      const entrada = Number(t.entrada) || 0
+      const saida = Number(t.saida) || 0
+      acumulado += entrada - saida
+
+      pontos.push({
+        id: t.id,
+        data: t.data,
+        dataFormatada: formatarData(t.data),
+        descricao: t.descricao,
+        entrada,
+        saida,
+        saldoAcumulado: acumulado,
+      })
+    })
+
+    return pontos
+  }, [transacoes])
+
+  // 3. Gráfico de Pizza: Entradas por Tipo (apenas valores > 0)
+  // Categorias requeridas: Venda Direta, Investimento, Bilheteria, Cartão (e agrupar quaisquer outras entradas válidas)
+  const pieChartData = useMemo(() => {
+    // Categorias padrão solicitadas com cores específicas
+    const CORES_ENTRADAS: Record<string, string> = {
+      'Venda Direta': '#0E7C6B', // Esmeralda / Marca
+      Investimento: '#0284C7', // Azul
+      Bilheteria: '#F59E0B', // Âmbar
+      Cartão: '#8B5CF6', // Roxo
+      Outros: '#64748B', // Ardósia
+    }
+
+    const mapa = new Map<string, number>()
+    let somaEntradas = 0
+
+    transacoes.forEach((t) => {
+      const entrada = Number(t.entrada) || 0
+      if (entrada > 0) {
+        const cat = (t.categoria || 'Outros').trim()
+        mapa.set(cat, (mapa.get(cat) || 0) + entrada)
+        somaEntradas += entrada
+      }
+    })
+
+    if (somaEntradas === 0) return []
+
+    const categoriasOrdenadas = ['Venda Direta', 'Investimento', 'Bilheteria', 'Cartão']
+    const resultado: {
+      name: string
+      value: number
+      percent: number
+      color: string
+    }[] = []
+
+    // Adiciona as categorias principais se tiverem valor > 0
+    categoriasOrdenadas.forEach((cat) => {
+      const valor = mapa.get(cat) || 0
+      if (valor > 0) {
+        resultado.push({
+          name: cat,
+          value: valor,
+          percent: (valor / somaEntradas) * 100,
+          color: CORES_ENTRADAS[cat] || '#10B981',
+        })
+        mapa.delete(cat)
+      }
+    })
+
+    // Adiciona outras categorias de entrada caso existam
+    let fallbackIndex = 0
+    const fallbackCores = ['#EC4899', '#14B8A6', '#F97316', '#64748B', '#84CC16']
+    mapa.forEach((valor, cat) => {
+      if (valor > 0) {
+        resultado.push({
+          name: cat,
+          value: valor,
+          percent: (valor / somaEntradas) * 100,
+          color: CORES_ENTRADAS[cat] || fallbackCores[fallbackIndex % fallbackCores.length],
+        })
+        fallbackIndex++
+      }
+    })
+
+    return resultado.sort((a, b) => b.value - a.value)
+  }, [transacoes])
+
   return (
     <div className="space-y-6 sm:space-y-8 animate-fade-up">
       {/* Header do Dashboard */}
@@ -197,22 +340,433 @@ export default function Dashboard() {
             variant="outline"
             size="sm"
             onClick={carregarDados}
-            disabled={loading}
+            disabled={loading || loadingTransacoes}
             className="rounded-xl border-[#E3E1DA] text-xs font-semibold text-[#18211F] hover:bg-white h-9 px-3 flex items-center gap-1.5 shadow-xs"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin text-[#0E7C6B]' : ''}`} />
+            <RefreshCw
+              className={`h-3.5 w-3.5 ${
+                loading || loadingTransacoes ? 'animate-spin text-[#0E7C6B]' : ''
+              }`}
+            />
             <span>Atualizar</span>
           </Button>
+
+          <Link to="/transactions">
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-[#0E7C6B] text-[#0E7C6B] hover:bg-[#E2F3EF] rounded-xl text-xs font-semibold h-9 px-3 flex items-center gap-1.5 shadow-xs"
+            >
+              <span>Fluxo de Caixa</span>
+              <ArrowUpRight className="h-3.5 w-3.5" />
+            </Button>
+          </Link>
 
           <Link to="/planejamento">
             <Button
               size="sm"
               className="bg-[#0E7C6B] hover:bg-[#0A6255] text-white rounded-xl shadow-sm text-xs font-semibold h-9 px-3.5 flex items-center gap-1.5"
             >
-              <span>Ver Itens</span>
+              <span>Ver Planejamento</span>
               <ArrowUpRight className="h-3.5 w-3.5" />
             </Button>
           </Link>
+        </div>
+      </div>
+
+      {/* ========================================================= */}
+      {/* SEÇÃO 1: FLUXO DE CAIXA (DADOS REAIS DA TABELA TRANSACOES) */}
+      {/* ========================================================= */}
+      <div className="space-y-4 sm:space-y-6 pt-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5">
+            <div className="h-8 w-8 rounded-xl bg-[#E2F3EF] flex items-center justify-center text-[#0E7C6B]">
+              <CircleDollarSign className="h-4 w-4" />
+            </div>
+            <div>
+              <h2 className="text-lg sm:text-xl font-bold text-[#18211F] tracking-tight">
+                Fluxo de Caixa Consolidado
+              </h2>
+              <p className="text-xs text-[#5F6B68]">
+                Movimentações financeiras reais registradas no livro-razão (Supabase)
+              </p>
+            </div>
+          </div>
+
+          <Link
+            to="/transactions"
+            className="text-xs font-bold text-[#0E7C6B] hover:text-[#0A6255] inline-flex items-center gap-1"
+          >
+            Ver Livro-Razão Completo &rarr;
+          </Link>
+        </div>
+
+        {/* 1. CARDS DE FLUXO DE CAIXA: Saldo Atual, Total de Entradas, Total de Saídas */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 lg:gap-6">
+          {/* Card 1: Saldo Atual (entradas - saídas) */}
+          <Card
+            className={`rounded-2xl border bg-white shadow-xs hover:shadow-md transition-shadow ${
+              totaisFluxoCaixa.saldoAtual >= 0 ? 'border-[#0E7C6B]/30' : 'border-rose-300/70'
+            }`}
+          >
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-xs font-bold uppercase tracking-wider text-[#5F6B68]">
+                Saldo Atual
+              </CardTitle>
+              <div
+                className={`h-9 w-9 rounded-xl flex items-center justify-center ${
+                  totaisFluxoCaixa.saldoAtual >= 0
+                    ? 'bg-[#E2F3EF] text-[#0E7C6B]'
+                    : 'bg-rose-50 text-[#F43F5E]'
+                }`}
+              >
+                <Wallet className="h-5 w-5" />
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-1">
+              <div
+                className={`text-2xl sm:text-3xl font-extrabold tracking-tight tabular-nums ${
+                  totaisFluxoCaixa.saldoAtual >= 0 ? 'text-[#0E7C6B]' : 'text-[#F43F5E]'
+                }`}
+              >
+                {loadingTransacoes ? (
+                  <div className="h-8 w-36 bg-[#F0EEE8] animate-pulse rounded" />
+                ) : (
+                  formatarMoeda(totaisFluxoCaixa.saldoAtual)
+                )}
+              </div>
+              <div className="flex items-center justify-between text-xs text-[#5F6B68] pt-1">
+                <span>Entradas − Saídas</span>
+                <span className="font-semibold text-[#18211F]">
+                  {totaisFluxoCaixa.totalTransacoes}{' '}
+                  {totaisFluxoCaixa.totalTransacoes === 1 ? 'transação' : 'transações'}
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Card 2: Total de Entradas */}
+          <Card className="rounded-2xl border border-emerald-200/70 bg-white shadow-xs hover:shadow-md transition-shadow">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-xs font-bold uppercase tracking-wider text-emerald-700">
+                Total de Entradas
+              </CardTitle>
+              <div className="h-9 w-9 rounded-xl bg-emerald-50 flex items-center justify-center text-[#10B981]">
+                <TrendingUp className="h-5 w-5" />
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-1">
+              <div className="text-2xl sm:text-3xl font-extrabold text-[#10B981] tracking-tight tabular-nums">
+                {loadingTransacoes ? (
+                  <div className="h-8 w-36 bg-[#F0EEE8] animate-pulse rounded" />
+                ) : (
+                  formatarMoeda(totaisFluxoCaixa.totalEntradas)
+                )}
+              </div>
+              <div className="flex items-center justify-between text-xs text-[#5F6B68] pt-1">
+                <span>Receitas e aportes</span>
+                <span className="font-bold text-emerald-700">{pieChartData.length} categorias</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Card 3: Total de Saídas */}
+          <Card className="rounded-2xl border border-rose-200/70 bg-white shadow-xs hover:shadow-md transition-shadow">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-xs font-bold uppercase tracking-wider text-rose-700">
+                Total de Saídas
+              </CardTitle>
+              <div className="h-9 w-9 rounded-xl bg-rose-50 flex items-center justify-center text-[#F43F5E]">
+                <TrendingDown className="h-5 w-5" />
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-1">
+              <div className="text-2xl sm:text-3xl font-extrabold text-[#F43F5E] tracking-tight tabular-nums">
+                {loadingTransacoes ? (
+                  <div className="h-8 w-36 bg-[#F0EEE8] animate-pulse rounded" />
+                ) : (
+                  formatarMoeda(totaisFluxoCaixa.totalSaidas)
+                )}
+              </div>
+              <div className="flex items-center justify-between text-xs text-[#5F6B68] pt-1">
+                <span>Pagamentos e despesas</span>
+                <span className="font-bold text-rose-700">Desembolsos reais</span>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* 2. GRÁFICOS DE FLUXO DE CAIXA: Linha (Evolução Saldo Acumulado) + Pizza (Entradas por Tipo) */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Gráfico de Linha: Evolução do Saldo Acumulado */}
+          <Card className="lg:col-span-7 rounded-2xl border border-[#E3E1DA] bg-white shadow-xs">
+            <CardHeader className="pb-3 border-b border-[#E3E1DA]/70">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2.5">
+                  <div className="h-8 w-8 rounded-xl bg-[#E2F3EF] flex items-center justify-center text-[#0E7C6B]">
+                    <Activity className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-base sm:text-lg font-bold text-[#18211F]">
+                      Evolução do Saldo Acumulado
+                    </CardTitle>
+                    <p className="text-xs text-[#5F6B68]">
+                      Eixo X = Data cronológica, Eixo Y = Saldo acumulado (entradas somam, saídas
+                      subtraem)
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 text-xs font-semibold">
+                  <span className="flex items-center gap-1.5 text-[#0E7C6B]">
+                    <span className="h-2.5 w-2.5 rounded-full bg-[#0E7C6B]" /> Saldo Acumulado
+                  </span>
+                </div>
+              </div>
+            </CardHeader>
+
+            <CardContent className="pt-6 pb-6">
+              {loadingTransacoes ? (
+                <div className="h-72 flex flex-col items-center justify-center gap-3">
+                  <Loader2 className="h-8 w-8 animate-spin text-[#0E7C6B]" />
+                  <p className="text-xs font-semibold text-[#5F6B68]">
+                    Carregando evolução do saldo...
+                  </p>
+                </div>
+              ) : lineChartData.length === 0 ? (
+                <div className="h-72 flex flex-col items-center justify-center text-center p-6 bg-[#FBFBFA] rounded-xl border border-dashed border-[#E3E1DA]">
+                  <Activity className="h-10 w-10 text-[#5F6B68] mb-2 opacity-40" />
+                  <p className="text-sm font-bold text-[#18211F]">Nenhuma transação registrada</p>
+                  <p className="text-xs text-[#5F6B68] mt-1 max-w-sm">
+                    Cadastre movimentações no Livro-Razão para visualizar a linha do tempo do saldo
+                    acumulado.
+                  </p>
+                  <Link to="/transactions" className="mt-4">
+                    <Button className="bg-[#0E7C6B] hover:bg-[#0A6255] text-white text-xs font-semibold rounded-xl">
+                      Ir para Transações
+                    </Button>
+                  </Link>
+                </div>
+              ) : (
+                <div className="w-full h-[300px] sm:h-[340px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart
+                      data={lineChartData}
+                      margin={{ top: 15, right: 25, left: 15, bottom: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E3E1DA" vertical={false} />
+                      <XAxis
+                        dataKey="dataFormatada"
+                        stroke="#5F6B68"
+                        fontSize={11}
+                        tickLine={false}
+                        axisLine={{ stroke: '#E3E1DA' }}
+                      />
+                      <YAxis
+                        stroke="#5F6B68"
+                        fontSize={11}
+                        tickLine={false}
+                        axisLine={{ stroke: '#E3E1DA' }}
+                        tickFormatter={(val) => {
+                          if (Math.abs(val) >= 1000) {
+                            return `R$ ${(val / 1000).toFixed(0)}k`
+                          }
+                          return `R$ ${val}`
+                        }}
+                      />
+                      <Tooltip
+                        content={({ active, payload }) => {
+                          if (active && payload && payload.length) {
+                            const data = payload[0].payload
+                            const isPositive = data.saldoAcumulado >= 0
+                            return (
+                              <div className="bg-white p-3.5 rounded-xl border border-[#E3E1DA] shadow-lg text-xs space-y-1.5 min-w-[210px]">
+                                <div className="border-b border-[#E3E1DA] pb-1">
+                                  <p className="font-bold text-[#18211F] text-sm">
+                                    {data.dataFormatada}
+                                  </p>
+                                  <p className="text-[11px] text-[#5F6B68] truncate max-w-[200px]">
+                                    {data.descricao}
+                                  </p>
+                                </div>
+                                <div className="flex items-center justify-between gap-4 pt-0.5">
+                                  <span className="text-[#5F6B68]">Saldo Acumulado:</span>
+                                  <strong
+                                    className={`text-sm tabular-nums ${
+                                      isPositive ? 'text-[#0E7C6B]' : 'text-[#F43F5E]'
+                                    }`}
+                                  >
+                                    {formatarMoeda(data.saldoAcumulado)}
+                                  </strong>
+                                </div>
+                                {data.entrada > 0 && (
+                                  <div className="flex items-center justify-between gap-4 text-emerald-700">
+                                    <span>Entrada:</span>
+                                    <span className="font-semibold tabular-nums">
+                                      +{formatarMoeda(data.entrada)}
+                                    </span>
+                                  </div>
+                                )}
+                                {data.saida > 0 && (
+                                  <div className="flex items-center justify-between gap-4 text-rose-700">
+                                    <span>Saída:</span>
+                                    <span className="font-semibold tabular-nums">
+                                      −{formatarMoeda(data.saida)}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          }
+                          return null
+                        }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="saldoAcumulado"
+                        name="Saldo Acumulado"
+                        stroke="#0E7C6B"
+                        strokeWidth={3}
+                        dot={{ fill: '#0E7C6B', r: 4, strokeWidth: 2, stroke: '#FFFFFF' }}
+                        activeDot={{ r: 6, fill: '#0E7C6B', stroke: '#E2F3EF', strokeWidth: 3 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Gráfico de Pizza: Entradas por Tipo (Venda Direta, Investimento, Bilheteria, Cartão) */}
+          <Card className="lg:col-span-5 rounded-2xl border border-[#E3E1DA] bg-white shadow-xs flex flex-col justify-between">
+            <CardHeader className="pb-3 border-b border-[#E3E1DA]/70">
+              <div className="flex items-center gap-2.5">
+                <div className="h-8 w-8 rounded-xl bg-[#E2F3EF] flex items-center justify-center text-[#0E7C6B]">
+                  <PieChartIcon className="h-4 w-4" />
+                </div>
+                <div>
+                  <CardTitle className="text-base sm:text-lg font-bold text-[#18211F]">
+                    Entradas por Tipo
+                  </CardTitle>
+                  <p className="text-xs text-[#5F6B68]">
+                    Divisão das receitas (valores &gt; 0) por categoria
+                  </p>
+                </div>
+              </div>
+            </CardHeader>
+
+            <CardContent className="pt-6 pb-6 flex-1 flex flex-col justify-center">
+              {loadingTransacoes ? (
+                <div className="h-72 flex flex-col items-center justify-center gap-3">
+                  <Loader2 className="h-8 w-8 animate-spin text-[#0E7C6B]" />
+                  <p className="text-xs font-semibold text-[#5F6B68]">
+                    Carregando divisão de entradas...
+                  </p>
+                </div>
+              ) : pieChartData.length === 0 ? (
+                <div className="h-72 flex flex-col items-center justify-center text-center p-6 bg-[#FBFBFA] rounded-xl border border-dashed border-[#E3E1DA]">
+                  <PieChartIcon className="h-10 w-10 text-[#5F6B68] mb-2 opacity-40" />
+                  <p className="text-sm font-bold text-[#18211F]">Nenhuma entrada registrada</p>
+                  <p className="text-xs text-[#5F6B68] mt-1 max-w-xs">
+                    Registre vendas diretas, bilheteria, cartões ou investimentos para visualizar a
+                    fatia de cada tipo.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="w-full h-[220px] sm:h-[240px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={pieChartData}
+                          dataKey="value"
+                          nameKey="name"
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={50}
+                          outerRadius={80}
+                          paddingAngle={3}
+                        >
+                          {pieChartData.map((entry) => (
+                            <Cell key={`cell-pie-${entry.name}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          content={({ active, payload }) => {
+                            if (active && payload && payload.length) {
+                              const data = payload[0].payload
+                              return (
+                                <div className="bg-white p-3 rounded-xl border border-[#E3E1DA] shadow-lg text-xs space-y-1 min-w-[170px]">
+                                  <div className="flex items-center gap-2 border-b border-[#E3E1DA] pb-1">
+                                    <span
+                                      className="h-2.5 w-2.5 rounded-full"
+                                      style={{ backgroundColor: data.color }}
+                                    />
+                                    <p className="font-bold text-[#18211F] text-sm">{data.name}</p>
+                                  </div>
+                                  <div className="flex items-center justify-between gap-3 pt-0.5">
+                                    <span className="text-[#5F6B68]">Total:</span>
+                                    <strong className="text-[#18211F] tabular-nums">
+                                      {formatarMoeda(data.value)}
+                                    </strong>
+                                  </div>
+                                  <div className="flex items-center justify-between gap-3">
+                                    <span className="text-[#5F6B68]">Participação:</span>
+                                    <strong className="text-[#0E7C6B] tabular-nums">
+                                      {data.percent.toFixed(1)}%
+                                    </strong>
+                                  </div>
+                                </div>
+                              )
+                            }
+                            return null
+                          }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  {/* Legenda Customizada com Percentuais e Cores */}
+                  <div className="grid grid-cols-2 gap-2 pt-1 border-t border-[#E3E1DA]/70">
+                    {pieChartData.map((item) => (
+                      <div
+                        key={item.name}
+                        className="flex items-center justify-between p-2 rounded-xl bg-[#F8F7F4] border border-[#E3E1DA]/60 text-xs"
+                      >
+                        <div className="flex items-center gap-2 truncate">
+                          <span
+                            className="h-2.5 w-2.5 rounded-full shrink-0"
+                            style={{ backgroundColor: item.color }}
+                          />
+                          <span className="font-semibold text-[#18211F] truncate">{item.name}</span>
+                        </div>
+                        <div className="text-right shrink-0 pl-1">
+                          <span className="font-bold text-[#0E7C6B] block tabular-nums text-[11px]">
+                            {item.percent.toFixed(0)}%
+                          </span>
+                          <span className="text-[10px] text-[#5F6B68] block tabular-nums">
+                            {formatarMoeda(item.value)}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* Divisor Visual entre Fluxo de Caixa e Planejamento */}
+      <div className="relative my-4">
+        <div className="absolute inset-0 flex items-center" aria-hidden="true">
+          <div className="w-full border-t border-[#E3E1DA]" />
+        </div>
+        <div className="relative flex justify-center">
+          <span className="bg-[#F8F7F4] px-3 text-xs font-bold uppercase tracking-wider text-[#5F6B68]">
+            Planejamento Orçamentário
+          </span>
         </div>
       </div>
 
@@ -440,11 +994,11 @@ export default function Dashboard() {
         <CardHeader className="pb-3 border-b border-[#E3E1DA]/70 flex flex-row items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="h-8 w-8 rounded-xl bg-[#E2F3EF] flex items-center justify-center text-[#0E7C6B]">
-              <PieChart className="h-4 w-4" />
+              <PieChartIcon className="h-4 w-4" />
             </div>
             <div>
               <CardTitle className="text-base sm:text-lg font-bold text-[#18211F]">
-                Detalhamento por Categoria
+                Detalhamento por Categoria (Planejamento)
               </CardTitle>
               <p className="text-xs text-[#5F6B68]">
                 Tabela consolidada com valores, percentual e status financeiro
