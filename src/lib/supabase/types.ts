@@ -9,6 +9,69 @@ export type Database = {
   }
   public: {
     Tables: {
+      planejamento_itens: {
+        Row: {
+          atualizado_em: string
+          categoria: string
+          criado_em: string
+          criado_por: string | null
+          evento: number
+          falta_pagar: number
+          gutto: number
+          id: string
+          item: string
+          junior: number
+          pc: number
+          quantidade: number
+          responsavel: string
+          ruan: number
+          status: string
+          total_pago: number
+          valor_final: number
+          valor_unitario: number
+        }
+        Insert: {
+          atualizado_em?: string
+          categoria: string
+          criado_em?: string
+          criado_por?: string | null
+          evento?: number
+          falta_pagar?: number
+          gutto?: number
+          id?: string
+          item: string
+          junior?: number
+          pc?: number
+          quantidade?: number
+          responsavel: string
+          ruan?: number
+          status?: string
+          total_pago?: number
+          valor_final?: number
+          valor_unitario?: number
+        }
+        Update: {
+          atualizado_em?: string
+          categoria?: string
+          criado_em?: string
+          criado_por?: string | null
+          evento?: number
+          falta_pagar?: number
+          gutto?: number
+          id?: string
+          item?: string
+          junior?: number
+          pc?: number
+          quantidade?: number
+          responsavel?: string
+          ruan?: number
+          status?: string
+          total_pago?: number
+          valor_final?: number
+          valor_unitario?: number
+        }
+        Relationships: []
+      }
       transacoes: {
         Row: {
           categoria: string

@@ -195,27 +195,30 @@ export default function Planejamento() {
     }
   }
 
-  // Renderizador de Badge de Status
+  // Renderizador de Badge de Status:
+  // Verde: Pago Total
+  // Amarelo: Pago Parcial
+  // Vermelho: Pendente
   const renderStatusBadge = (statusStr: string, faltaPagar: number) => {
     if (statusStr === 'Pago Total' || faltaPagar <= 0) {
       return (
         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-          <CheckCircle2 className="h-3 w-3" />
+          <CheckCircle2 className="h-3 w-3 text-emerald-700" />
           Pago Total
         </span>
       )
     }
     if (statusStr === 'Pago Parcial') {
       return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-100 text-blue-800 border border-blue-300">
-          <Clock className="h-3 w-3" />
+        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+          <Clock className="h-3 w-3 text-amber-700" />
           Pago Parcial
         </span>
       )
     }
     return (
-      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
-        <AlertTriangle className="h-3 w-3" />
+      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
+        <AlertTriangle className="h-3 w-3 text-rose-700" />
         Pendente
       </span>
     )

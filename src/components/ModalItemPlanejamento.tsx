@@ -50,12 +50,11 @@ export function ModalItemPlanejamento({
   const [quantidadeStr, setQuantidadeStr] = useState<string>('1')
   const [valorUnitarioStr, setValorUnitarioStr] = useState<string>('')
 
-  // Campos manuais de sócio / evento
+  // Campos manuais de sócios
   const [guttoStr, setGuttoStr] = useState<string>('')
   const [ruanStr, setRuanStr] = useState<string>('')
   const [pcStr, setPcStr] = useState<string>('')
   const [juniorStr, setJuniorStr] = useState<string>('')
-  const [eventoStr, setEventoStr] = useState<string>('')
 
   const [status, setStatus] = useState<StatusPlanejamento>('Pendente')
 
@@ -96,9 +95,6 @@ export function ModalItemPlanejamento({
         setJuniorStr(
           itemParaEditar.junior > 0 ? itemParaEditar.junior.toString().replace('.', ',') : '',
         )
-        setEventoStr(
-          itemParaEditar.evento > 0 ? itemParaEditar.evento.toString().replace('.', ',') : '',
-        )
         setStatus(
           STATUS_PLANEJAMENTO.includes(itemParaEditar.status as StatusPlanejamento)
             ? (itemParaEditar.status as StatusPlanejamento)
@@ -114,13 +110,16 @@ export function ModalItemPlanejamento({
         setRuanStr('')
         setPcStr('')
         setJuniorStr('')
-        setEventoStr('')
         setStatus('Pendente')
       }
     }
   }, [open, itemParaEditar])
 
-  // Cálculos automáticos em tempo real
+  // Cálculos automáticos em tempo real:
+  // 1. valor_final = quantidade × valor_unitario
+  // 2. evento = valor_final - gutto - ruan - pc - junior (automático / somente leitura)
+  // 3. total_pago = gutto + ruan + pc + junior + evento
+  // 4. falta_pagar = valor_final - total_pago
   const qtd = parseNum(quantidadeStr) || 1
   const valorUnit = parseNum(valorUnitarioStr)
   const valorFinalCalculado = Number((qtd * valorUnit).toFixed(2))
@@ -129,9 +128,13 @@ export function ModalItemPlanejamento({
   const ruanVal = parseNum(ruanStr)
   const pcVal = parseNum(pcStr)
   const juniorVal = parseNum(juniorStr)
-  const eventoVal = parseNum(eventoStr)
 
-  const totalPagoCalculado = Number((guttoVal + ruanVal + pcVal + juniorVal + eventoVal).toFixed(2))
+  const eventoCalculado = Number(
+    (valorFinalCalculado - guttoVal - ruanVal - pcVal - juniorVal).toFixed(2),
+  )
+  const totalPagoCalculado = Number(
+    (guttoVal + ruanVal + pcVal + juniorVal + eventoCalculado).toFixed(2),
+  )
   const faltaPagarCalculado = Number((valorFinalCalculado - totalPagoCalculado).toFixed(2))
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -177,7 +180,7 @@ export function ModalItemPlanejamento({
         ruan: ruanVal,
         pc: pcVal,
         junior: juniorVal,
-        evento: eventoVal,
+        evento: eventoCalculado,
         total_pago: totalPagoCalculado,
         falta_pagar: faltaPagarCalculado,
         status,
@@ -241,7 +244,6 @@ export function ModalItemPlanejamento({
                 </SelectContent>
               </Select>
             </div>
-
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-[#18211F]">Status de Pagamento *</Label>
               <Select value={status} onValueChange={(val) => setStatus(val as StatusPlanejamento)}>
@@ -249,14 +251,27 @@ export function ModalItemPlanejamento({
                   <SelectValue placeholder="Selecione o status" />
                 </SelectTrigger>
                 <SelectContent className="bg-white border-[#E3E1DA] rounded-xl">
-                  {STATUS_PLANEJAMENTO.map((st) => (
-                    <SelectItem key={st} value={st} className="cursor-pointer text-xs sm:text-sm">
-                      {st}
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="Pago Total" className="cursor-pointer text-xs sm:text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                      <span>Pago Total</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="Pago Parcial" className="cursor-pointer text-xs sm:text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-amber-500" />
+                      <span>Pago Parcial</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="Pendente" className="cursor-pointer text-xs sm:text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-rose-500" />
+                      <span>Pendente</span>
+                    </div>
+                  </SelectItem>
                 </SelectContent>
               </Select>
-            </div>
+            </div>{' '}
           </div>
 
           {/* Item e Responsável */}
@@ -350,14 +365,13 @@ export function ModalItemPlanejamento({
             </div>
           </div>
 
-          {/* Divisão Manual: Gutto, Ruan, PC, Junior, Evento */}
+          {/* Divisão dos Pagamentos: Sócios (Manual) e Evento (Calculado) */}
           <div className="p-3.5 bg-[#F8F7F4] rounded-xl border border-[#E3E1DA] space-y-3">
             <div>
-              <span className="text-xs font-bold text-[#18211F] block">
-                Divisão dos Pagamentos (Preenchimento Manual)
-              </span>
+              <span className="text-xs font-bold text-[#18211F] block">Divisão dos Pagamentos</span>
               <span className="text-[11px] text-[#5F6B68] block">
-                Insira o valor já pago por cada sócio ou pela conta do evento.
+                Insira o valor pago por cada sócio. O valor do <strong>Evento</strong> é calculado
+                automaticamente (Valor Final - Sócios).
               </span>
             </div>
 
@@ -423,18 +437,17 @@ export function ModalItemPlanejamento({
               </div>
 
               <div className="col-span-2 sm:col-span-1 space-y-1">
-                <Label htmlFor="item-evento" className="text-[11px] font-semibold text-[#18211F]">
-                  Evento (R$)
+                <Label className="text-[11px] font-semibold text-[#18211F]">
+                  Evento (Calculado)
                 </Label>
-                <Input
-                  id="item-evento"
-                  type="text"
-                  inputMode="decimal"
-                  placeholder="0,00"
-                  value={eventoStr}
-                  onChange={(e) => setEventoStr(e.target.value)}
-                  className="bg-white border-[#E3E1DA] focus:border-[#0E7C6B] rounded-lg text-xs"
-                />
+                <div
+                  className={`h-9 px-2.5 bg-[#EAE8E1] border border-[#D5D3CB] rounded-lg flex items-center font-bold text-xs tabular-nums truncate ${
+                    eventoCalculado < 0 ? 'text-amber-700' : 'text-[#0E7C6B]'
+                  }`}
+                  title={formatarMoeda(eventoCalculado)}
+                >
+                  {formatarMoeda(eventoCalculado)}
+                </div>
               </div>
             </div>
           </div>
