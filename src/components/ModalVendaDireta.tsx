@@ -4,7 +4,11 @@ import {
   FORMAS_PAGAMENTO_VENDA,
   NovaVendaIngressoPayload,
 } from '@/types/fluxo-caixa'
-import { uploadComprovante, registrarVendaDiretaIngresso } from '@/services/transacoes'
+import {
+  uploadComprovante,
+  registrarVendaDiretaIngresso,
+  processarComprovanteComIA,
+} from '@/services/transacoes'
 import { useAuth } from '@/hooks/use-mobile'
 import { formatarMoeda, formatarBytes } from '@/lib/formatters'
 import {
@@ -39,6 +43,7 @@ import {
   Phone,
   Mail,
   FileBadge,
+  Sparkles,
 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 
@@ -71,6 +76,8 @@ export function ModalVendaDireta({ open, onOpenChange, onSuccess }: ModalVendaDi
   // Submission state
   const [saving, setSaving] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [isReadingReceipt, setIsReadingReceipt] = useState(false)
+  const [uploadedStoragePath, setUploadedStoragePath] = useState<string | null>(null)
 
   // Valor Total calculado automaticamente
   const valorTotal = useMemo(() => {
@@ -95,6 +102,7 @@ export function ModalVendaDireta({ open, onOpenChange, onSuccess }: ModalVendaDi
       setPreviewUrl(null)
       setFileError(null)
       setErrorMsg(null)
+      setUploadedStoragePath(null)
     }
   }, [open])
 
@@ -125,12 +133,106 @@ export function ModalVendaDireta({ open, onOpenChange, onSuccess }: ModalVendaDi
 
   const handleRemoveFile = () => {
     setSelectedFile(null)
+    setUploadedStoragePath(null)
     if (previewUrl) {
       URL.revokeObjectURL(previewUrl)
       setPreviewUrl(null)
     }
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
+    }
+  }
+
+  const handleLerComprovanteComIA = async () => {
+    setErrorMsg(null)
+    if (!user) {
+      setErrorMsg('Usuário não autenticado.')
+      return
+    }
+
+    if (!selectedFile && !uploadedStoragePath) {
+      setErrorMsg('Nenhum comprovante anexado.')
+      return
+    }
+
+    setIsReadingReceipt(true)
+    try {
+      let targetPath = uploadedStoragePath
+
+      // Se ainda não enviamos ao storage, enviar agora
+      if (selectedFile && !uploadedStoragePath) {
+        targetPath = await uploadComprovante(selectedFile, user.id)
+        setUploadedStoragePath(targetPath)
+      }
+
+      if (!targetPath) {
+        throw new Error('Nenhum comprovante disponível para leitura.')
+      }
+
+      const extraidos = await processarComprovanteComIA(targetPath)
+
+      let preencheuAlgo = false
+
+      // Valor extraído: ajustar valorUnitario considerando qtdIngressos ou calcular
+      if (extraidos.valor !== null && extraidos.valor !== undefined) {
+        const qtd = Number(qtdIngressos) || 1
+        // Se a quantidade for 1, valor unitário = valor total
+        if (qtd <= 1) {
+          setValorUnitario(extraidos.valor)
+        } else {
+          // Se o usuário já informou quantidade > 1, calcula unitário
+          setValorUnitario(Number((extraidos.valor / qtd).toFixed(2)))
+        }
+        preencheuAlgo = true
+      }
+
+      if (extraidos.data) {
+        setDataVenda(extraidos.data)
+        preencheuAlgo = true
+      }
+
+      if (extraidos.nome_pagador) {
+        if (!nomeComprador.trim()) {
+          setNomeComprador(extraidos.nome_pagador)
+        }
+        setNomePagador(extraidos.nome_pagador)
+        preencheuAlgo = true
+      }
+
+      if (extraidos.forma_pagamento) {
+        if (FORMAS_PAGAMENTO_VENDA.includes(extraidos.forma_pagamento as FormaPagamentoVenda)) {
+          setFormaPagamento(extraidos.forma_pagamento as FormaPagamentoVenda)
+          preencheuAlgo = true
+        }
+      }
+
+      if (preencheuAlgo) {
+        toast({
+          title: 'Comprovante lido!',
+          description: 'Campos preenchidos automaticamente. Revise os dados antes de salvar.',
+        })
+      } else {
+        toast({
+          title: 'Leitura concluída',
+          description:
+            'Não foram encontrados dados legíveis nos padrões esperados. Preencha manualmente.',
+          variant: 'default',
+        })
+      }
+    } catch (err: unknown) {
+      console.error('Erro ao ler comprovante com IA:', err)
+      const msg =
+        err instanceof Error
+          ? err.message
+          : 'Não foi possível ler o comprovante com IA. Tente novamente ou preencha manualmente.'
+      setErrorMsg(msg)
+      toast({
+        title: 'Falha na leitura do comprovante',
+        description: msg,
+        variant: 'destructive',
+      })
+    } finally {
+      setIsReadingReceipt(false)
     }
   }
 
@@ -170,7 +272,8 @@ export function ModalVendaDireta({ open, onOpenChange, onSuccess }: ModalVendaDi
 
       // Upload do comprovante para o bucket comprovantes
       if (selectedFile) {
-        uploadedComprovantePath = await uploadComprovante(selectedFile, user.id)
+        uploadedComprovantePath =
+          uploadedStoragePath || (await uploadComprovante(selectedFile, user.id))
       }
 
       const payload: NovaVendaIngressoPayload = {
@@ -450,32 +553,55 @@ export function ModalVendaDireta({ open, onOpenChange, onSuccess }: ModalVendaDi
             />
 
             {selectedFile ? (
-              <div className="flex items-center justify-between p-3 rounded-xl border border-[#0E7C6B]/40 bg-[#E2F3EF]/40">
-                <div className="flex items-center gap-3 overflow-hidden">
-                  {previewUrl ? (
-                    <img
-                      src={previewUrl}
-                      alt="Preview"
-                      className="h-10 w-10 object-cover rounded-lg border border-[#0E7C6B]/20"
-                    />
-                  ) : (
-                    <div className="h-10 w-10 rounded-lg bg-[#0E7C6B]/10 flex items-center justify-center text-[#0E7C6B]">
-                      <FileText className="h-5 w-5" />
+              <div className="space-y-2">
+                <div className="flex items-center justify-between p-3 rounded-xl border border-[#0E7C6B]/40 bg-[#E2F3EF]/40">
+                  <div className="flex items-center gap-3 overflow-hidden">
+                    {previewUrl ? (
+                      <img
+                        src={previewUrl}
+                        alt="Preview"
+                        className="h-10 w-10 object-cover rounded-lg border border-[#0E7C6B]/20"
+                      />
+                    ) : (
+                      <div className="h-10 w-10 rounded-lg bg-[#0E7C6B]/10 flex items-center justify-center text-[#0E7C6B]">
+                        <FileText className="h-5 w-5" />
+                      </div>
+                    )}
+                    <div className="truncate text-xs">
+                      <p className="font-semibold text-[#18211F] truncate">{selectedFile.name}</p>
+                      <p className="text-[#5F6B68]">{formatarBytes(selectedFile.size)}</p>
                     </div>
-                  )}
-                  <div className="truncate text-xs">
-                    <p className="font-semibold text-[#18211F] truncate">{selectedFile.name}</p>
-                    <p className="text-[#5F6B68]">{formatarBytes(selectedFile.size)}</p>
                   </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleRemoveFile}
+                    className="text-red-600 hover:bg-red-50 hover:text-red-700 h-8 w-8 p-0"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
                 </div>
+
+                {/* Botão de Ler Comprovante com IA */}
                 <Button
                   type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleRemoveFile}
-                  className="text-red-600 hover:bg-red-50 hover:text-red-700 h-8 w-8 p-0"
+                  variant="outline"
+                  onClick={handleLerComprovanteComIA}
+                  disabled={isReadingReceipt || saving}
+                  className="w-full bg-[#E2F3EF] hover:bg-[#cbebe3] text-[#0E7C6B] border border-[#0E7C6B]/30 font-semibold rounded-xl text-xs py-2 h-auto flex items-center justify-center gap-2 transition-colors shadow-xs"
                 >
-                  <X className="h-4 w-4" />
+                  {isReadingReceipt ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Analisando Comprovante com IA...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-3.5 w-3.5 text-[#0E7C6B]" />
+                      Ler Comprovante com IA
+                    </>
+                  )}
                 </Button>
               </div>
             ) : (

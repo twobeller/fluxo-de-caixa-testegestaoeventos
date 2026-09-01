@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase/client'
 import {
   Transacao,
   NovaTransacaoPayload,
+  FormaPagamentoVenda,
   VendaIngresso,
   NovaVendaIngressoPayload,
 } from '@/types/fluxo-caixa'
@@ -316,6 +317,149 @@ export async function registrarVendaDiretaIngresso(
       transacao_id: vendaData.transacao_id,
       criado_em: vendaData.criado_em,
     },
+  }
+}
+
+export interface DadosComprovanteExtraidos {
+  valor?: number | null
+  data?: string | null
+  nome_pagador?: string | null
+  forma_pagamento?: FormaPagamentoVenda | string | null
+  raw?: Record<string, any>
+}
+
+export async function processarComprovanteComIA(
+  storagePathOuUrl: string,
+): Promise<DadosComprovanteExtraidos> {
+  // 1. Obter URL pública ou assinada válida acessível pela Edge Function
+  const publicOrSignedUrl = await obterUrlComprovante(storagePathOuUrl)
+  if (!publicOrSignedUrl) {
+    throw new Error('Não foi possível obter o endereço do arquivo do comprovante.')
+  }
+
+  // 2. Chamar a Edge Function "ler-comprovante"
+  const { data, error } = await supabase.functions.invoke('ler-comprovante', {
+    body: {
+      imageUrl: publicOrSignedUrl,
+      url: publicOrSignedUrl,
+    },
+  })
+
+  if (error) {
+    console.error('Erro retornado pela Edge Function ler-comprovante:', error)
+    throw new Error(
+      'Não foi possível processar o comprovante com IA. Verifique a imagem e tente novamente.',
+    )
+  }
+
+  if (!data) {
+    throw new Error('Nenhuma informação foi retornada pela análise do comprovante.')
+  }
+
+  if (data.error) {
+    throw new Error(
+      typeof data.error === 'string' ? data.error : 'Falha na extração dos dados do comprovante.',
+    )
+  }
+
+  // 3. Normalizar os dados retornados
+  // O retorno pode conter chaves variadas dependendo do Gemini (ex: valor, data, nome_pagador, nome do pagador, forma_pagamento, forma de pagamento)
+  const result: Record<string, any> = typeof data === 'object' ? data : {}
+
+  // Extrair valor
+  let valorExtraido: number | null = null
+  const valorRaw =
+    result.valor ??
+    result.valor_total ??
+    result.valor_pago ??
+    result.valorPago ??
+    result.value ??
+    result.amount
+
+  if (typeof valorRaw === 'number') {
+    valorExtraido = valorRaw
+  } else if (typeof valorRaw === 'string') {
+    // Ex: "R$ 150,00" ou "150.00" ou "1.250,50"
+    const cleaned = valorRaw.replace(/R\$/gi, '').replace(/\s/g, '').trim()
+    if (cleaned.includes(',') && cleaned.includes('.')) {
+      // Formato brasileiro com ponto de milhar 1.250,50
+      valorExtraido = parseFloat(cleaned.replace(/\./g, '').replace(',', '.'))
+    } else if (cleaned.includes(',')) {
+      valorExtraido = parseFloat(cleaned.replace(',', '.'))
+    } else {
+      valorExtraido = parseFloat(cleaned)
+    }
+  }
+
+  // Extrair data (esperado YYYY-MM-DD no input date do HTML)
+  let dataExtraida: string | null = null
+  const dataRaw = result.data ?? result.date ?? result.data_pagamento ?? result.dataPagamento
+  if (typeof dataRaw === 'string') {
+    const limpa = dataRaw.trim()
+    // Caso DD/MM/YYYY ou DD-MM-YYYY
+    const brMatch = limpa.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})/)
+    if (brMatch) {
+      const dia = brMatch[1].padStart(2, '0')
+      const mes = brMatch[2].padStart(2, '0')
+      const ano = brMatch[3]
+      dataExtraida = `${ano}-${mes}-${dia}`
+    } else if (limpa.match(/^\d{4}-\d{2}-\d{2}/)) {
+      dataExtraida = limpa.slice(0, 10)
+    }
+  }
+
+  // Extrair nome do pagador
+  let pagadorExtraido: string | null = null
+  const pagadorRaw =
+    result.nome_pagador ??
+    result['nome do pagador'] ??
+    result.nomeDoPagador ??
+    result.pagador ??
+    result.payer ??
+    result.nome_cliente ??
+    result.cliente ??
+    result.nome
+  if (typeof pagadorRaw === 'string' && pagadorRaw.trim()) {
+    pagadorExtraido = pagadorRaw.trim()
+  }
+
+  // Extrair forma de pagamento (PIX/cartão/dinheiro)
+  let formaExtraida: FormaPagamentoVenda | string | null = null
+  const formaRaw = (
+    result.forma_pagamento ??
+    result['forma de pagamento'] ??
+    result.formaDePagamento ??
+    result.metodo_pagamento ??
+    result.metodo ??
+    result.tipo_pagamento ??
+    ''
+  )
+    .toString()
+    .toLowerCase()
+
+  if (formaRaw.includes('pix')) {
+    formaExtraida = 'PIX'
+  } else if (
+    formaRaw.includes('cart') ||
+    formaRaw.includes('crédito') ||
+    formaRaw.includes('debito') ||
+    formaRaw.includes('débito')
+  ) {
+    formaExtraida = 'Cartão'
+  } else if (
+    formaRaw.includes('dinheiro') ||
+    formaRaw.includes('espécie') ||
+    formaRaw.includes('cash')
+  ) {
+    formaExtraida = 'Dinheiro'
+  }
+
+  return {
+    valor: valorExtraido && !isNaN(valorExtraido) ? valorExtraido : null,
+    data: dataExtraida,
+    nome_pagador: pagadorExtraido,
+    forma_pagamento: formaExtraida,
+    raw: result,
   }
 }
 
