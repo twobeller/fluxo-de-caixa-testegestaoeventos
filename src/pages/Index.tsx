@@ -13,6 +13,7 @@ import { formatarMoeda, formatarData } from '@/lib/formatters'
 import { CountUp } from '@/components/CountUp'
 import { ModalTransacao } from '@/components/ModalTransacao'
 import { ModalVendaDireta } from '@/components/ModalVendaDireta'
+import { ModalVisualizarComprovante } from '@/components/ModalVisualizarComprovante'
 import { DialogExcluir } from '@/components/DialogExcluir'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -30,7 +31,7 @@ import {
   Pencil,
   Trash2,
   Receipt,
-  FileSpreadsheet,
+  Eye,
 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, Legend } from 'recharts'
@@ -43,9 +44,13 @@ export default function Index() {
   const [loading, setLoading] = useState(true)
   const [periodo, setPeriodo] = useState<'mes' | 'trimestre' | 'ano' | 'tudo'>('mes')
 
-  // Modal create/edit
+  // Modal create/edit & receipt view
   const [modalOpen, setModalOpen] = useState(false)
   const [modalVendaDiretaOpen, setModalVendaDiretaOpen] = useState(false)
+  const [modalComprovanteOpen, setModalComprovanteOpen] = useState(false)
+  const [comprovanteAtivo, setComprovanteAtivo] = useState<{ path: string; titulo: string } | null>(
+    null,
+  )
   const [transacaoParaEditar, setTransacaoParaEditar] = useState<Transacao | null>(null)
 
   // Dialog delete
@@ -228,11 +233,9 @@ export default function Index() {
     }
   }
 
-  const handleVerComprovante = async (url: string) => {
-    const publicUrl = await obterUrlComprovante(url)
-    if (publicUrl) {
-      window.open(publicUrl, '_blank')
-    }
+  const handleVerComprovante = (url: string, titulo: string) => {
+    setComprovanteAtivo({ path: url, titulo })
+    setModalComprovanteOpen(true)
   }
 
   return (
@@ -589,11 +592,13 @@ export default function Index() {
                           </span>
                           {t.comprovante_url && (
                             <button
-                              onClick={() => handleVerComprovante(t.comprovante_url!)}
-                              title="Ver Comprovante Anexo"
-                              className="text-[#0E7C6B] hover:text-[#0A6255] shrink-0"
+                              type="button"
+                              onClick={() => handleVerComprovante(t.comprovante_url!, t.descricao)}
+                              title="Visualizar Comprovante"
+                              className="inline-flex items-center gap-1 text-[11px] font-bold text-[#0E7C6B] hover:text-white hover:bg-[#0E7C6B] bg-[#E2F3EF] px-1.5 py-0.5 rounded transition-all shrink-0"
                             >
-                              <Paperclip className="h-3.5 w-3.5" />
+                              <Eye className="h-3 w-3" />
+                              <span className="hidden sm:inline">Comprovante</span>
                             </button>
                           )}
                         </div>
@@ -626,10 +631,22 @@ export default function Index() {
                       </div>
 
                       <div className="hidden sm:flex items-center gap-1 pl-2 border-l border-[#E3E1DA]">
+                        {t.comprovante_url && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleVerComprovante(t.comprovante_url!, t.descricao)}
+                            title="Visualizar comprovante"
+                            className="h-8 w-8 rounded-lg text-[#0E7C6B] hover:text-[#0A6255] hover:bg-[#E2F3EF]"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="icon"
                           onClick={() => handleOpenEditModal(t)}
+                          title="Editar transação"
                           className="h-8 w-8 rounded-lg text-[#5F6B68] hover:text-[#0E7C6B] hover:bg-[#E2F3EF]"
                         >
                           <Pencil className="h-3.5 w-3.5" />
@@ -638,6 +655,7 @@ export default function Index() {
                           variant="ghost"
                           size="icon"
                           onClick={() => handleOpenDeleteDialog(t)}
+                          title="Excluir transação"
                           className="h-8 w-8 rounded-lg text-[#5F6B68] hover:text-[#F43F5E] hover:bg-rose-50"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -673,6 +691,14 @@ export default function Index() {
         open={dialogExcluirOpen}
         onOpenChange={setDialogExcluirOpen}
         onConfirm={handleConfirmDelete}
+      />
+
+      {/* MODAL VISUALIZAR COMPROVANTE */}
+      <ModalVisualizarComprovante
+        open={modalComprovanteOpen}
+        onOpenChange={setModalComprovanteOpen}
+        comprovantePathOrUrl={comprovanteAtivo?.path || null}
+        tituloTransacao={comprovanteAtivo?.titulo}
       />
     </div>
   )

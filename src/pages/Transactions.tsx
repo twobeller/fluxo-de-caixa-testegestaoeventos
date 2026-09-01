@@ -17,6 +17,7 @@ import { useAuth } from '@/hooks/use-mobile'
 import { formatarMoeda, formatarData } from '@/lib/formatters'
 import { ModalTransacao } from '@/components/ModalTransacao'
 import { ModalVendaDireta } from '@/components/ModalVendaDireta'
+import { ModalVisualizarComprovante } from '@/components/ModalVisualizarComprovante'
 import { DialogExcluir } from '@/components/DialogExcluir'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -39,9 +40,7 @@ import {
   ChevronRight,
   Receipt,
   Ticket,
-  FileSpreadsheet,
-  ArrowUpDown,
-  ExternalLink,
+  Eye,
 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 
@@ -67,6 +66,10 @@ export default function Transactions() {
   // Modals state
   const [modalOpen, setModalOpen] = useState(false)
   const [modalVendaDiretaOpen, setModalVendaDiretaOpen] = useState(false)
+  const [modalComprovanteOpen, setModalComprovanteOpen] = useState(false)
+  const [comprovanteAtivo, setComprovanteAtivo] = useState<{ path: string; titulo: string } | null>(
+    null,
+  )
   const [transacaoParaEditar, setTransacaoParaEditar] = useState<Transacao | null>(null)
   const [dialogExcluirOpen, setDialogExcluirOpen] = useState(false)
   const [transacaoParaExcluir, setTransacaoParaExcluir] = useState<Transacao | null>(null)
@@ -224,11 +227,9 @@ export default function Transactions() {
     }
   }
 
-  const handleVerComprovante = async (url: string) => {
-    const publicUrl = await obterUrlComprovante(url)
-    if (publicUrl) {
-      window.open(publicUrl, '_blank')
-    }
+  const handleVerComprovante = (url: string, titulo: string) => {
+    setComprovanteAtivo({ path: url, titulo })
+    setModalComprovanteOpen(true)
   }
 
   return (
@@ -477,15 +478,18 @@ export default function Transactions() {
                         {/* 2. Descrição + Comprovante link */}
                         <td className="py-3.5 px-4 font-medium text-[#18211F]">
                           <div className="flex items-center gap-2">
-                            <span className="font-semibold">{t.descricao}</span>
+                            <span className="font-semibold text-slate-900">{t.descricao}</span>
                             {t.comprovante_url && (
                               <button
-                                onClick={() => handleVerComprovante(t.comprovante_url!)}
-                                title="Abrir comprovante anexado"
-                                className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#0E7C6B] hover:text-[#0A6255] bg-[#E2F3EF] px-1.5 py-0.5 rounded-md transition-colors"
+                                type="button"
+                                onClick={() =>
+                                  handleVerComprovante(t.comprovante_url!, t.descricao)
+                                }
+                                title="Ver comprovante"
+                                className="inline-flex items-center gap-1 text-[11px] font-bold text-[#0E7C6B] hover:text-white hover:bg-[#0E7C6B] bg-[#E2F3EF] px-2 py-0.5 rounded-md transition-all shadow-sm shrink-0"
                               >
-                                <Paperclip className="h-3 w-3" />
-                                <span>Anexo</span>
+                                <Eye className="h-3 w-3" />
+                                <span>Comprovante</span>
                               </button>
                             )}
                           </div>
@@ -532,6 +536,19 @@ export default function Transactions() {
                         {/* 8. Ações */}
                         <td className="py-3.5 px-4 text-center whitespace-nowrap">
                           <div className="flex items-center justify-center gap-1">
+                            {t.comprovante_url && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() =>
+                                  handleVerComprovante(t.comprovante_url!, t.descricao)
+                                }
+                                title="Visualizar comprovante"
+                                className="h-8 w-8 rounded-lg text-[#0E7C6B] hover:text-[#0A6255] hover:bg-[#E2F3EF]"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            )}
                             <Button
                               variant="ghost"
                               size="icon"
@@ -600,20 +617,32 @@ export default function Transactions() {
 
                         {t.comprovante_url && (
                           <button
-                            onClick={() => handleVerComprovante(t.comprovante_url!)}
-                            className="inline-flex items-center gap-1 text-xs font-semibold text-[#0E7C6B] hover:underline"
+                            type="button"
+                            onClick={() => handleVerComprovante(t.comprovante_url!, t.descricao)}
+                            className="inline-flex items-center gap-1 text-xs font-bold text-[#0E7C6B] bg-[#E2F3EF] px-2 py-0.5 rounded-md hover:bg-[#0E7C6B] hover:text-white transition-colors"
                           >
-                            <Paperclip className="h-3.5 w-3.5" /> Comprovante
+                            <Eye className="h-3.5 w-3.5" /> Comprovante
                           </button>
                         )}
                       </div>
 
                       <div className="flex items-center gap-1">
+                        {t.comprovante_url && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleVerComprovante(t.comprovante_url!, t.descricao)}
+                            className="h-7 px-2 text-xs font-semibold text-[#0E7C6B] hover:bg-[#E2F3EF]"
+                          >
+                            <Eye className="h-3.5 w-3.5 mr-1" />
+                            Ver
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => handleOpenEditModal(t)}
-                          className="h-7 px-2 text-xs font-semibold text-[#0E7C6B]"
+                          className="h-7 px-2 text-xs font-semibold text-[#5F6B68] hover:text-[#0E7C6B]"
                         >
                           Editar
                         </Button>
@@ -686,6 +715,14 @@ export default function Transactions() {
         open={dialogExcluirOpen}
         onOpenChange={setDialogExcluirOpen}
         onConfirm={handleConfirmDelete}
+      />
+
+      {/* MODAL VISUALIZAR COMPROVANTE */}
+      <ModalVisualizarComprovante
+        open={modalComprovanteOpen}
+        onOpenChange={setModalComprovanteOpen}
+        comprovantePathOrUrl={comprovanteAtivo?.path || null}
+        tituloTransacao={comprovanteAtivo?.titulo}
       />
     </div>
   )

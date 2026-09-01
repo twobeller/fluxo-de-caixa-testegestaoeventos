@@ -57,36 +57,45 @@ export type Database = {
       vendas_ingressos: {
         Row: {
           comprovante_url: string | null
+          cpf: string | null
           criado_em: string
+          email: string | null
           forma_pagamento: string
           id: string
           nome_comprador: string
           nome_pagador: string
           qtd_ingressos: number
+          telefone: string | null
           transacao_id: string | null
           valor_total: number
           valor_unitario: number
         }
         Insert: {
           comprovante_url?: string | null
+          cpf?: string | null
           criado_em?: string
+          email?: string | null
           forma_pagamento: string
           id?: string
           nome_comprador: string
           nome_pagador: string
           qtd_ingressos?: number
+          telefone?: string | null
           transacao_id?: string | null
           valor_total?: number
           valor_unitario?: number
         }
         Update: {
           comprovante_url?: string | null
+          cpf?: string | null
           criado_em?: string
+          email?: string | null
           forma_pagamento?: string
           id?: string
           nome_comprador?: string
           nome_pagador?: string
           qtd_ingressos?: number
+          telefone?: string | null
           transacao_id?: string | null
           valor_total?: number
           valor_unitario?: number
