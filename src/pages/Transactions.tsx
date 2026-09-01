@@ -16,6 +16,7 @@ import {
 import { useAuth } from '@/hooks/use-mobile'
 import { formatarMoeda, formatarData } from '@/lib/formatters'
 import { ModalTransacao } from '@/components/ModalTransacao'
+import { ModalVendaDireta } from '@/components/ModalVendaDireta'
 import { DialogExcluir } from '@/components/DialogExcluir'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -37,6 +38,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Receipt,
+  Ticket,
   FileSpreadsheet,
   ArrowUpDown,
   ExternalLink,
@@ -64,6 +66,7 @@ export default function Transactions() {
 
   // Modals state
   const [modalOpen, setModalOpen] = useState(false)
+  const [modalVendaDiretaOpen, setModalVendaDiretaOpen] = useState(false)
   const [transacaoParaEditar, setTransacaoParaEditar] = useState<Transacao | null>(null)
   const [dialogExcluirOpen, setDialogExcluirOpen] = useState(false)
   const [transacaoParaExcluir, setTransacaoParaExcluir] = useState<Transacao | null>(null)
@@ -241,13 +244,24 @@ export default function Transactions() {
           </p>
         </div>
 
-        <Button
-          onClick={handleOpenNewModal}
-          className="bg-[#0E7C6B] hover:bg-[#0A6255] text-white rounded-xl shadow-md font-semibold text-xs sm:text-sm h-10 px-4 flex items-center gap-1.5 shrink-0"
-        >
-          <Plus className="h-4 w-4" />
-          Nova Transação
-        </Button>
+        <div className="flex items-center gap-2.5 shrink-0">
+          <Button
+            onClick={() => setModalVendaDiretaOpen(true)}
+            variant="outline"
+            className="border-[#0E7C6B] text-[#0E7C6B] hover:bg-[#E2F3EF] rounded-xl font-semibold text-xs sm:text-sm h-10 px-3.5 flex items-center gap-1.5 shadow-sm transition-all"
+          >
+            <Ticket className="h-4 w-4 text-[#0E7C6B]" />
+            <span>Venda de Ingressos</span>
+          </Button>
+
+          <Button
+            onClick={handleOpenNewModal}
+            className="bg-[#0E7C6B] hover:bg-[#0A6255] text-white rounded-xl shadow-md font-semibold text-xs sm:text-sm h-10 px-4 flex items-center gap-1.5"
+          >
+            <Plus className="h-4 w-4" />
+            Nova Transação
+          </Button>
+        </div>
       </div>
 
       {/* FILTERS BAR */}
@@ -650,6 +664,13 @@ export default function Transactions() {
           </>
         )}
       </div>
+
+      {/* MODAL VENDA DIRETA DE INGRESSOS */}
+      <ModalVendaDireta
+        open={modalVendaDiretaOpen}
+        onOpenChange={setModalVendaDiretaOpen}
+        onSuccess={carregarDados}
+      />
 
       {/* MODAL CRIAR / EDITAR */}
       <ModalTransacao

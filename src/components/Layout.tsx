@@ -1,7 +1,17 @@
 import { useState, ReactNode } from 'react'
 import { NavLink, useNavigate, useLocation, Outlet } from 'react-router-dom'
 import { useAuth } from '@/hooks/use-mobile'
-import { LayoutDashboard, Receipt, LogOut, Plus, Menu, X, Wallet, Coins } from 'lucide-react'
+import {
+  LayoutDashboard,
+  Receipt,
+  LogOut,
+  Plus,
+  Menu,
+  X,
+  Wallet,
+  Coins,
+  Ticket,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Sheet,
@@ -11,6 +21,7 @@ import {
   SheetDescription,
 } from '@/components/ui/sheet'
 import { ModalTransacao } from './ModalTransacao'
+import { ModalVendaDireta } from './ModalVendaDireta'
 import { criarTransacao, atualizarTransacao } from '@/services/transacoes'
 import { NovaTransacaoPayload } from '@/types/fluxo-caixa'
 
@@ -25,6 +36,7 @@ export default function Layout({ children }: AppLayoutProps) {
 
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false)
   const [modalNovaTransacaoOpen, setModalNovaTransacaoOpen] = useState(false)
+  const [modalVendaDiretaOpen, setModalVendaDiretaOpen] = useState(false)
 
   const handleLogout = async () => {
     await signOut()
@@ -86,7 +98,14 @@ export default function Layout({ children }: AppLayoutProps) {
         </div>
 
         {/* Global Action Button */}
-        <div className="px-4 pt-5 pb-2">
+        <div className="px-4 pt-5 pb-2 space-y-2">
+          <Button
+            onClick={() => setModalVendaDiretaOpen(true)}
+            className="w-full bg-[#1A3F39] hover:bg-[#23534B] text-[#10B981] hover:text-[#34D399] border border-[#0E7C6B]/40 rounded-xl py-4 font-semibold text-xs shadow transition-all flex items-center justify-center gap-2"
+          >
+            <Ticket className="h-4 w-4" />
+            Venda de Ingressos
+          </Button>
           <Button
             onClick={() => setModalNovaTransacaoOpen(true)}
             className="w-full bg-[#0E7C6B] hover:bg-[#0A6255] text-white rounded-xl py-5 font-semibold text-sm shadow-md transition-all flex items-center justify-center gap-2"
@@ -296,7 +315,13 @@ export default function Layout({ children }: AppLayoutProps) {
         </NavLink>
       </div>
 
-      {/* GLOBAL MODAL NOVA TRANSAÇÃO */}
+      {/* GLOBAL MODAIS */}
+      <ModalVendaDireta
+        open={modalVendaDiretaOpen}
+        onOpenChange={setModalVendaDiretaOpen}
+        onSuccess={handleSuccess}
+      />
+
       <ModalTransacao
         open={modalNovaTransacaoOpen}
         onOpenChange={setModalNovaTransacaoOpen}

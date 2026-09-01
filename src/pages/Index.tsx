@@ -12,6 +12,7 @@ import { useAuth } from '@/hooks/use-mobile'
 import { formatarMoeda, formatarData } from '@/lib/formatters'
 import { CountUp } from '@/components/CountUp'
 import { ModalTransacao } from '@/components/ModalTransacao'
+import { ModalVendaDireta } from '@/components/ModalVendaDireta'
 import { DialogExcluir } from '@/components/DialogExcluir'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -21,6 +22,7 @@ import {
   TrendingUp,
   TrendingDown,
   Plus,
+  Ticket,
   Paperclip,
   ArrowRight,
   Loader2,
@@ -43,6 +45,7 @@ export default function Index() {
 
   // Modal create/edit
   const [modalOpen, setModalOpen] = useState(false)
+  const [modalVendaDiretaOpen, setModalVendaDiretaOpen] = useState(false)
   const [transacaoParaEditar, setTransacaoParaEditar] = useState<Transacao | null>(null)
 
   // Dialog delete
@@ -289,6 +292,16 @@ export default function Index() {
               Tudo
             </button>
           </div>
+
+          <Button
+            onClick={() => setModalVendaDiretaOpen(true)}
+            variant="outline"
+            className="border-[#0E7C6B] text-[#0E7C6B] hover:bg-[#E2F3EF] rounded-xl font-semibold text-xs sm:text-sm h-9 sm:h-10 px-3 flex items-center gap-1.5 shadow-sm"
+          >
+            <Ticket className="h-4 w-4 text-[#0E7C6B]" />
+            <span className="hidden sm:inline">Venda Ingressos</span>
+            <span className="sm:hidden">Ingressos</span>
+          </Button>
 
           <Button
             onClick={handleOpenNewModal}
@@ -638,6 +651,13 @@ export default function Index() {
           )}
         </CardContent>
       </Card>
+
+      {/* MODAL VENDA DIRETA DE INGRESSOS */}
+      <ModalVendaDireta
+        open={modalVendaDiretaOpen}
+        onOpenChange={setModalVendaDiretaOpen}
+        onSuccess={carregarDados}
+      />
 
       {/* MODAL CRIAR/EDITAR */}
       <ModalTransacao

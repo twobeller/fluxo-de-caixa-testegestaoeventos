@@ -51,9 +51,16 @@ export interface NovaTransacaoPayload {
   observacoes?: string | null
 }
 
+export type FormaPagamentoVenda = 'PIX' | 'Cartão' | 'Dinheiro'
+
+export const FORMAS_PAGAMENTO_VENDA: FormaPagamentoVenda[] = ['PIX', 'Cartão', 'Dinheiro']
+
 export interface VendaIngresso {
   id: string
   nome_comprador: string
+  cpf?: string | null
+  email?: string | null
+  telefone?: string | null
   qtd_ingressos: number
   valor_unitario: number
   valor_total: number
@@ -62,4 +69,17 @@ export interface VendaIngresso {
   comprovante_url?: string | null
   transacao_id?: string | null
   criado_em: string
+}
+
+export interface NovaVendaIngressoPayload {
+  nome_comprador: string
+  cpf?: string | null
+  email?: string | null
+  telefone?: string | null
+  qtd_ingressos: number
+  valor_unitario: number
+  valor_total: number
+  nome_pagador?: string | null
+  forma_pagamento: FormaPagamentoVenda | string
+  comprovante_url?: string | null
 }

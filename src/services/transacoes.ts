@@ -1,5 +1,10 @@
 import { supabase } from '@/lib/supabase/client'
-import { Transacao, NovaTransacaoPayload } from '@/types/fluxo-caixa'
+import {
+  Transacao,
+  NovaTransacaoPayload,
+  VendaIngresso,
+  NovaVendaIngressoPayload,
+} from '@/types/fluxo-caixa'
 
 export async function recalcularSaldosAcumulados(): Promise<void> {
   const { data, error } = await supabase
@@ -229,4 +234,115 @@ export async function obterUrlComprovante(pathOrUrl: string): Promise<string> {
   const { data: publicData } = supabase.storage.from('comprovantes').getPublicUrl(pathOrUrl)
 
   return publicData.publicUrl
+}
+
+export async function registrarVendaDiretaIngresso(
+  payload: NovaVendaIngressoPayload,
+  userId: string,
+  dataTransacao?: string,
+): Promise<{ transacao: Transacao; venda: VendaIngresso }> {
+  const dataHoje = dataTransacao || new Date().toISOString().split('T')[0]
+  const compradorNome = payload.nome_comprador.trim()
+  const pagadorNome = payload.nome_pagador?.trim() || compradorNome
+  const valorTotal = Number((payload.qtd_ingressos * payload.valor_unitario).toFixed(2))
+
+  // 1. Criar transação de Entrada no Fluxo de Caixa
+  const observacoesDetalhes = [
+    `Comprador: ${compradorNome}`,
+    payload.cpf ? `CPF: ${payload.cpf.trim()}` : null,
+    payload.email ? `Email: ${payload.email.trim()}` : null,
+    payload.telefone ? `Tel: ${payload.telefone.trim()}` : null,
+    pagadorNome !== compradorNome ? `Pagador: ${pagadorNome}` : null,
+    `Qtd: ${payload.qtd_ingressos}x R$ ${payload.valor_unitario.toFixed(2)}`,
+    `Pagamento: ${payload.forma_pagamento}`,
+  ]
+    .filter(Boolean)
+    .join(' | ')
+
+  const transacaoResult = await criarTransacao(
+    {
+      data: dataHoje,
+      descricao: `VENDA DIRETA - ${compradorNome}`,
+      categoria: 'Venda Direta',
+      entrada: valorTotal,
+      saida: 0,
+      responsavel: 'Evento',
+      comprovante_url: payload.comprovante_url || null,
+      observacoes: observacoesDetalhes,
+    },
+    userId,
+  )
+
+  // 2. Registrar na tabela vendas_ingressos
+  const { data: vendaData, error: vendaError } = await supabase
+    .from('vendas_ingressos')
+    .insert([
+      {
+        nome_comprador: compradorNome,
+        cpf: payload.cpf?.trim() || null,
+        email: payload.email?.trim() || null,
+        telefone: payload.telefone?.trim() || null,
+        qtd_ingressos: payload.qtd_ingressos,
+        valor_unitario: payload.valor_unitario,
+        valor_total: valorTotal,
+        nome_pagador: pagadorNome,
+        forma_pagamento: payload.forma_pagamento,
+        comprovante_url: payload.comprovante_url || null,
+        transacao_id: transacaoResult.id,
+      } as any,
+    ])
+    .select()
+    .single()
+
+  if (vendaError) {
+    console.error('Erro ao registrar venda de ingressos:', vendaError)
+    throw vendaError
+  }
+
+  return {
+    transacao: transacaoResult,
+    venda: {
+      id: vendaData.id,
+      nome_comprador: vendaData.nome_comprador,
+      cpf: (vendaData as any).cpf || null,
+      email: (vendaData as any).email || null,
+      telefone: (vendaData as any).telefone || null,
+      qtd_ingressos: Number(vendaData.qtd_ingressos),
+      valor_unitario: Number(vendaData.valor_unitario),
+      valor_total: Number(vendaData.valor_total),
+      nome_pagador: vendaData.nome_pagador,
+      forma_pagamento: vendaData.forma_pagamento,
+      comprovante_url: vendaData.comprovante_url,
+      transacao_id: vendaData.transacao_id,
+      criado_em: vendaData.criado_em,
+    },
+  }
+}
+
+export async function listarVendasIngressos(): Promise<VendaIngresso[]> {
+  const { data, error } = await supabase
+    .from('vendas_ingressos')
+    .select('*')
+    .order('criado_em', { ascending: false })
+
+  if (error) {
+    console.error('Erro ao listar vendas de ingressos:', error)
+    throw error
+  }
+
+  return (data || []).map((v) => ({
+    id: v.id,
+    nome_comprador: v.nome_comprador,
+    cpf: (v as any).cpf || null,
+    email: (v as any).email || null,
+    telefone: (v as any).telefone || null,
+    qtd_ingressos: Number(v.qtd_ingressos) || 0,
+    valor_unitario: Number(v.valor_unitario) || 0,
+    valor_total: Number(v.valor_total) || 0,
+    nome_pagador: v.nome_pagador,
+    forma_pagamento: v.forma_pagamento,
+    comprovante_url: v.comprovante_url,
+    transacao_id: v.transacao_id,
+    criado_em: v.criado_em,
+  }))
 }
