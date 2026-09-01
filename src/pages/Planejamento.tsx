@@ -34,7 +34,6 @@ import {
   Loader2,
   CalendarCheck2,
   CheckCircle2,
-  Clock,
   AlertTriangle,
   ChevronLeft,
   ChevronRight,
@@ -129,6 +128,11 @@ export default function Planejamento() {
     const totalJunior = itens.reduce((acc, i) => acc + (i.junior || 0), 0)
     const totalEvento = itens.reduce((acc, i) => acc + (i.evento || 0), 0)
 
+    // Itens com pagamento pendente (falta_pagar > 0)
+    const itensPendentes = itens.filter((i) => (i.falta_pagar || 0) > 0)
+    const totalItensPendentes = itensPendentes.length
+    const totalPendenteValor = itensPendentes.reduce((acc, i) => acc + (i.falta_pagar || 0), 0)
+
     return {
       totalGasto,
       totalPago,
@@ -139,6 +143,8 @@ export default function Planejamento() {
       totalJunior,
       totalEvento,
       totalItens: itens.length,
+      totalItensPendentes,
+      totalPendenteValor,
     }
   }, [itens])
 
@@ -195,31 +201,33 @@ export default function Planejamento() {
     }
   }
 
-  // Renderizador de Badge de Status:
-  // Verde: Pago Total
-  // Amarelo: Pago Parcial
-  // Vermelho: Pendente
+  // Renderizador de Badge de Status e Indicador Visual:
+  // - Itens com falta_pagar <= 0 (pago total / quitado): ícone verde de check
+  // - Itens com falta_pagar > 0: ícone de alerta amarelo
   const renderStatusBadge = (statusStr: string, faltaPagar: number) => {
-    if (statusStr === 'Pago Total' || faltaPagar <= 0) {
+    const quitado = faltaPagar <= 0 || statusStr === 'Pago Total'
+
+    if (quitado) {
       return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-          <CheckCircle2 className="h-3 w-3 text-emerald-700" />
-          Pago Total
+        <span
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300"
+          title="Totalmente quitado (Pago Total)"
+        >
+          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+          <span>Pago Total</span>
         </span>
       )
     }
-    if (statusStr === 'Pago Parcial') {
-      return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
-          <Clock className="h-3 w-3 text-amber-700" />
-          Pago Parcial
-        </span>
-      )
-    }
+
+    // Pendente com valor restante a pagar (falta_pagar > 0) -> Alerta amarelo
+    const isParcial = statusStr === 'Pago Parcial'
     return (
-      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
-        <AlertTriangle className="h-3 w-3 text-rose-700" />
-        Pendente
+      <span
+        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300"
+        title={`Pagamento pendente: falta pagar ${formatarMoeda(faltaPagar)}`}
+      >
+        <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+        <span>{isParcial ? 'Pago Parcial' : 'Pendente'}</span>
       </span>
     )
   }
@@ -245,6 +253,62 @@ export default function Planejamento() {
           Novo Item
         </Button>
       </div>
+
+      {/* BANNER DE PAGAMENTOS PENDENTES NO TOPO */}
+      {!loading && resumoGeral.totalItensPendentes > 0 ? (
+        <div className="bg-amber-50 border border-amber-200/80 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-start sm:items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-amber-100 flex items-center justify-center shrink-0 border border-amber-300/60">
+              <AlertTriangle className="h-5 w-5 text-amber-700" />
+            </div>
+            <div>
+              <p className="text-xs sm:text-sm font-semibold text-amber-950">
+                <strong className="font-extrabold text-amber-900">
+                  {resumoGeral.totalItensPendentes}{' '}
+                  {resumoGeral.totalItensPendentes === 1
+                    ? 'item com pagamento pendente'
+                    : 'itens com pagamento pendente'}
+                </strong>{' '}
+                — Total a pagar:{' '}
+                <span className="font-extrabold text-amber-900 tabular-nums">
+                  {formatarMoeda(resumoGeral.totalPendenteValor)}
+                </span>
+              </p>
+              <p className="text-xs text-amber-800/80 mt-0.5">
+                Existem contas do planejamento aguardando quitação parcial ou total.
+              </p>
+            </div>
+          </div>
+
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setStatusFiltro((prev) => (prev === 'todos' ? 'Pendente' : 'todos'))
+              setPagina(1)
+            }}
+            className="self-start sm:self-auto text-xs font-semibold bg-white border-amber-300 text-amber-900 hover:bg-amber-100/60 rounded-xl h-8 px-3 shrink-0"
+          >
+            {statusFiltro === 'Pendente' ? 'Ver todos os itens' : 'Filtrar pendentes'}
+          </Button>
+        </div>
+      ) : !loading && resumoGeral.totalItens > 0 ? (
+        <div className="bg-emerald-50 border border-emerald-200/80 rounded-2xl p-4 sm:p-5 flex items-center gap-3 shadow-xs">
+          <div className="h-10 w-10 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0 border border-emerald-300/60">
+            <CheckCircle2 className="h-5 w-5 text-emerald-700" />
+          </div>
+          <div>
+            <p className="text-xs sm:text-sm font-semibold text-emerald-950">
+              Todos os itens de planejamento estão quitados!
+            </p>
+            <p className="text-xs text-emerald-800/80 mt-0.5">
+              Nenhum pagamento pendente no momento. Total orçado de{' '}
+              {formatarMoeda(resumoGeral.totalGasto)} totalmente pago.
+            </p>
+          </div>
+        </div>
+      ) : null}
 
       {/* CARDS DE RESUMO DO PLANEJAMENTO */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
