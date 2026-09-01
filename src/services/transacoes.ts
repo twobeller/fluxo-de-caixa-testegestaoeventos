@@ -128,7 +128,17 @@ export async function atualizarTransacao(
   id: string,
   payload: Partial<NovaTransacaoPayload>,
 ): Promise<Transacao> {
-  const updateData: Record<string, unknown> = {}
+  const updateData: {
+    data?: string
+    descricao?: string
+    categoria?: string
+    entrada?: number
+    saida?: number
+    responsavel?: string
+    comprovante_url?: string | null
+    observacoes?: string | null
+  } = {}
+
   if (payload.data !== undefined) updateData.data = payload.data
   if (payload.descricao !== undefined) updateData.descricao = payload.descricao.trim()
   if (payload.categoria !== undefined) updateData.categoria = payload.categoria
