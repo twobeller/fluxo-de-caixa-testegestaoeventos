@@ -93,8 +93,8 @@ Deno.serve(async (req: Request) => {
     const promptText =
       'Extraia deste comprovante de pagamento os seguintes campos: valor, data, nome do pagador, forma de pagamento (PIX/cartão/dinheiro) e retorne em JSON'
 
-    // Chamada para a API Gemini (gemini-2.0-flash)
-    const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(
+    // Chamada para a API Gemini (gemini-2.5-flash)
+    const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(
       geminiApiKey,
     )}`
 
